@@ -125,3 +125,54 @@ def test_previa_nao_abre_conexoes(monkeypatch):
     assert er.main() == 0
     smtp.assert_not_called()
     imap.assert_not_called()
+
+
+def test_pendencia_bloqueia_o_lote_inteiro(monkeypatch, tmp_path):
+    """Um PDF sem e-mail cadastrado impede o envio de todos os outros."""
+    from unittest.mock import MagicMock
+
+    (tmp_path / 'Relatório PADARIA PAO DOURADO LTDA - Setembro 2026.pdf').write_bytes(b'%PDF')
+    (tmp_path / 'Relatório BARBEARIA NAVALHA DE OURO LTDA - Setembro 2026.pdf').write_bytes(b'%PDF')
+    smtp = MagicMock()
+    monkeypatch.setattr(er.smtplib, 'SMTP', smtp)
+    monkeypatch.setenv('SMTP_PASSWORD', 'ficticia')
+    monkeypatch.setenv('SAVE_TO_SENT', 'false')
+    monkeypatch.setattr(sys, 'argv', ['enviar_relatorios.py', '--pasta', str(tmp_path), '--enviar'])
+    assert er.main() == 1
+    smtp.assert_not_called()
+
+
+def test_empresa_sem_cadastro_gera_erro():
+    clientes = er.carregar_clientes(RAIZ / 'dados' / 'clientes.xlsx')
+    with pytest.raises(ValueError, match='encontrados 0 cadastros'):
+        er.relacionar('EMPRESA QUE NAO EXISTE LTDA', clientes)
+
+
+def test_cadastro_ambiguo_bloqueia():
+    clientes = [
+        ('EMPRESA ALFA COMERCIO', ['a@exemplo.example.com']),
+        ('EMPRESA ALFA COMERCIO SUL', ['b@exemplo.example.com']),
+    ]
+    with pytest.raises(ValueError, match='encontrados 2 cadastros'):
+        er.relacionar('EMPRESA ALFA COMERCIO SUL FILIAL', clientes)
+
+
+def test_filial_nao_se_confunde_com_matriz():
+    clientes = er.carregar_clientes(RAIZ / 'dados' / 'clientes.xlsx')
+    assert er.relacionar('CONSTRUTORA ALICERCE LTDA', clientes)[0] == 'CONSTRUTORA ALICERCE LTDA'
+    assert er.relacionar('CONSTRUTORA ALICERCE LTDA - FILIAL', clientes)[0] == (
+        'CONSTRUTORA ALICERCE LTDA - FILIAL'
+    )
+
+
+def test_email_invalido_na_planilha(tmp_path):
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.append(['RAZÃO SOCIAL', 'E-MAIL - 1', 'E-MAIL - 2', 'E-MAIL - 3'])
+    worksheet.append(['EMPRESA TESTE LTDA', 'isto-nao-e-um-email', '-', '-'])
+    caminho = tmp_path / 'clientes.xlsx'
+    workbook.save(caminho)
+    with pytest.raises(ValueError, match='E-mail inválido na linha 2'):
+        er.carregar_clientes(caminho)
