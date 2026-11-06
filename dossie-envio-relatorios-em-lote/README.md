@@ -245,7 +245,7 @@ git remote add origin https://github.com/SEU_USUARIO/envio-relatorios-em-lote.gi
 git push -u origin main
 ```
 
-Se `origin` já estiver configurado, confira `git remote -v` e use o remoto existente em vez de adicioná-lo novamente. O README na raiz do repositório aponta para este README do dossiê, que é a documentação principal do projeto.
+Se `origin` já estiver configurado, confira `git remote -v` e use o remoto existente em vez de adicioná-lo novamente. A documentação principal do projeto está no [README da raiz](../README.md), que publica esta visão no GitHub.
 
 **Descrição sugerida:** Automação em Python para associar PDFs a clientes em Excel e enviar relatórios por e-mail, com prévia, assinatura e testes locais.
 
